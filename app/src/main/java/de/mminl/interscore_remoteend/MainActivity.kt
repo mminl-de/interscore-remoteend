@@ -55,30 +55,6 @@ class MainActivity : ComponentActivity() {
 	}
 }
 
-class WebSocketClient {
-	var message by remember { mutableStateOf("") }
-
-	fun new(port: Int) {
-
-	}
-}
-fun webSocketConnect(client: OkHttpClient, port: Int): WebSocket {
-	return client.newWebSocket(request, object : WebSocketListener() {
-		override fun onOpen(webSocket: WebSocket, response: Response) {
-			message = "Mit Port $port verbunden!"
-		}
-
-		override fun onMessage(webSocket: WebSocket, text: String) {
-			// TODO TEMP
-			message = text
-		}
-
-		override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-			message = "Verbindung gescheitert!"
-		}
-	})
-}
-
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,8 +68,21 @@ fun RemoteendApp() {
 	val keyboardController = LocalSoftwareKeyboardController.current
 
 	LaunchedEffect(Unit) {
-		val request = Request.Builder().url("ws://192.0.0.1:$port").build()
-		webSocket = webSocketConnect(client, 8081)
+		val request = Request.Builder().url("ws://192.168.0.69:$port").build()
+		webSocket = client.newWebSocket(request, object : WebSocketListener() {
+			override fun onOpen(webSocket: WebSocket, response: Response) {
+				message = "Mit Port $port verbunden!"
+			}
+
+			override fun onMessage(webSocket: WebSocket, text: String) {
+				// TODO TEMP
+				message = text
+			}
+
+			override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+				message = "Verbindung gescheitert!"
+			}
+		})
 	}
 
 	InterscoreRemoteendTheme {
@@ -132,13 +121,33 @@ fun RemoteendApp() {
 						verticalArrangement =
 							Arrangement.spacedBy(6.dp, Alignment.CenterVertically)
 					) {
-						ActionButton(text = "Scoreboard", onClick = {
-							webSocket?.send(ByteString.of(42))
+						// TODO MOVE
+						var scoreboardHandle = remember { mutableStateOf(false) }
+						var livetableHandle = remember { mutableStateOf(false) }
+						var gameplanHandle = remember { mutableStateOf(false) }
+						var gamestartHandle = remember { mutableStateOf(false) }
+						var adHandle = remember { mutableStateOf(false) }
+
+						ActionButton(text = "Scoreboard", handle = scoreboardHandle.value, onClick = {
+							scoreboardHandle.value = !scoreboardHandle.value
+							webSocket?.send(ByteString.of(0))
 						})
-						ActionButton(text = "Livetable", onClick = {})
-						ActionButton(text = "Gameplan", onClick = {})
-						ActionButton(text = "Gamestart", onClick = {})
-						ActionButton(text = "Ads", onClick = {})
+						ActionButton(text = "Livetable", handle = livetableHandle.value, onClick = {
+							livetableHandle.value = !livetableHandle.value
+							webSocket?.send(ByteString.of(1))
+						})
+						ActionButton(text = "Gameplan", handle = gameplanHandle.value, onClick = {
+							gameplanHandle.value = !gameplanHandle.value
+							webSocket?.send(ByteString.of(2))
+						})
+						ActionButton(text = "Gamestart", handle = gamestartHandle.value, onClick = {
+							gamestartHandle.value = !gamestartHandle.value
+							webSocket?.send(ByteString.of(3))
+						})
+						ActionButton(text = "Ad", handle = adHandle.value, onClick = {
+							adHandle.value = !adHandle.value
+							webSocket?.send(ByteString.of(4))
+						})
 					}
 				}
 			}
@@ -179,7 +188,7 @@ fun RemoteendApp() {
 }
 
 @Composable
-fun ActionButton(text: String, onClick: (Boolean) -> Unit) {
+fun ActionButton(text: String, handle: Boolean, onClick: (Boolean) -> Unit) {
 	Surface(
 		modifier = Modifier.fillMaxWidth(),
 		color = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -194,7 +203,7 @@ fun ActionButton(text: String, onClick: (Boolean) -> Unit) {
 				text = text
 			)
 			Switch(
-				checked = true,
+				checked = handle,
 				onCheckedChange = onClick
 			)
 		}
