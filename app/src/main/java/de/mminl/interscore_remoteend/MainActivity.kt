@@ -59,16 +59,21 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RemoteendApp() {
-	var message by remember { mutableStateOf("") }
+	// TODO READ where to properly put this
+	var port = 8081
 	val client = remember { OkHttpClient() }
 	var webSocket: WebSocket? = null
-	var port = 8081
+	var message by remember { mutableStateOf("") }
+
 	var changePort = remember { mutableStateOf(false) }
+
 	var textState = remember { mutableStateOf("") }
 	val keyboardController = LocalSoftwareKeyboardController.current
 
+	// TODO READ what this is for
 	LaunchedEffect(Unit) {
 		val request = Request.Builder().url("ws://192.168.0.69:$port").build()
+		// TODO READ how to REconnect
 		webSocket = client.newWebSocket(request, object : WebSocketListener() {
 			override fun onOpen(webSocket: WebSocket, response: Response) {
 				message = "Mit Port $port verbunden!"
@@ -123,8 +128,8 @@ fun RemoteendApp() {
 					) {
 						// TODO MOVE
 						var scoreboardHandle = remember { mutableStateOf(false) }
-						var livetableHandle = remember { mutableStateOf(false) }
 						var gameplanHandle = remember { mutableStateOf(false) }
+						var livetableHandle = remember { mutableStateOf(false) }
 						var gamestartHandle = remember { mutableStateOf(false) }
 						var adHandle = remember { mutableStateOf(false) }
 
@@ -132,12 +137,12 @@ fun RemoteendApp() {
 							scoreboardHandle.value = !scoreboardHandle.value
 							webSocket?.send(ByteString.of(0))
 						})
-						ActionButton(text = "Livetable", handle = livetableHandle.value, onClick = {
-							livetableHandle.value = !livetableHandle.value
-							webSocket?.send(ByteString.of(1))
-						})
 						ActionButton(text = "Gameplan", handle = gameplanHandle.value, onClick = {
 							gameplanHandle.value = !gameplanHandle.value
+							webSocket?.send(ByteString.of(1))
+						})
+						ActionButton(text = "Livetable", handle = livetableHandle.value, onClick = {
+							livetableHandle.value = !livetableHandle.value
 							webSocket?.send(ByteString.of(2))
 						})
 						ActionButton(text = "Gamestart", handle = gamestartHandle.value, onClick = {
@@ -153,6 +158,7 @@ fun RemoteendApp() {
 			}
 
 			if (changePort.value) {
+				// TODO READ how to break away it into a Composable?
 				BasicAlertDialog(onDismissRequest = { changePort.value = false }) {
 					Card(
 						modifier = Modifier.size(300.dp, 100.dp),
