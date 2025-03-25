@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,13 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import de.mminl.interscore_remoteend.ui.theme.InterscoreRemoteendTheme
+import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
-import java.util.concurrent.TimeUnit
 
 class WebSocketClient(url: String) {
 	private val client = OkHttpClient.Builder()
@@ -79,6 +80,7 @@ class WebSocketClient(url: String) {
 }
 
 // TODO FINAL dont make the phone sleep
+// TODO FINAL confirmation dialogue for closing stream
 class MainActivity : ComponentActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
@@ -100,7 +102,15 @@ fun RemoteendApp() {
 	InterscoreRemoteendTheme {
 		Scaffold(
 			modifier = Modifier.fillMaxSize(),
-			topBar = { TopAppBar(title = { Text("Interscore Remote") }) }
+			topBar = {
+				TopAppBar(title = {
+					Text(
+						MaterialTheme.colorScheme.primary.toString(),
+						// TODO headlineMedium
+						style = MaterialTheme.typography.bodySmall
+					)
+				})
+			}
 		) { innerPadding ->
 			Column(
 				modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -221,7 +231,7 @@ fun ActionButton(
 	onOff: () -> Unit, onOn: () -> Unit
 ) {
 	var isClicked by remember { mutableStateOf(false) }
-	if (isClicked) ActionButtonOn(imageVector = imageVector, label = labelOn, onClick = onOn) {
+	if (isClicked) ActionButtonOn(imageVector = Icons.Filled.Close, label = labelOn, onClick = onOn) {
 		isClicked = !isClicked
 	}
 	else ActionButtonOff(imageVector = imageVector, label = labelOff, onClick = onOff) {
