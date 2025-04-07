@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -27,7 +28,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,35 +37,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import de.mminl.interscore_remoteend.ui.theme.InterscoreRemoteendTheme
-import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import java.util.concurrent.TimeUnit
 
-class WebSocketClient(url: String) {
+class WebSocketClient(url: String, private val updateMessage: (String) -> Unit) {
 	private val client = OkHttpClient.Builder()
 		.retryOnConnectionFailure(true)
 		.pingInterval(10, TimeUnit.SECONDS)
 		.build()
 	private val request = Request.Builder().url(url).build()
 
-	var webSocket: WebSocket? = null
-	var message: String by mutableStateOf("Verbindet...")
-
 	private val listener = object : WebSocketListener() {
 		override fun onOpen(webSocket: WebSocket, response: Response) {
-			message = "Mit Port 8081 verbunden!"
+			updateMessage("Mit Port 8081 verbunden!")
 		}
 
 		override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-			message = "Verbindung gescheitert!"
+			updateMessage("Verbindung gescheitert!")
 		}
 
 		// TODO FINAL disconnect on destroying app
 	}
+
+	var webSocket: WebSocket? = null
 
 	fun connect() {
 		webSocket = client.newWebSocket(request, listener)
@@ -74,7 +73,7 @@ class WebSocketClient(url: String) {
 	// TODO
 	fun reconnect() {
 		webSocket?.cancel()
-		message = "Verbindet neu..." // TODO
+		updateMessage("Verbindet neu...")
 		connect()
 	}
 }
@@ -93,11 +92,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun RemoteendApp() {
 	// TODO READ where to properly put this
-	val wsc = WebSocketClient("ws://192.168.0.69:8081")
+	var message by remember { mutableStateOf("Verbindet...") }
+	val wsc = WebSocketClient("ws://192.168.0.28:8081") { msg ->
+		message = msg
+	}
 	wsc.connect()
-	var statusText by remember { mutableStateOf(wsc.message) }
-
-	LaunchedEffect(wsc.message) { statusText = wsc.message }
 
 	InterscoreRemoteendTheme {
 		Scaffold(
@@ -105,9 +104,8 @@ fun RemoteendApp() {
 			topBar = {
 				TopAppBar(title = {
 					Text(
-						MaterialTheme.colorScheme.primary.toString(),
-						// TODO headlineMedium
-						style = MaterialTheme.typography.bodySmall
+						"Interscore Remote",
+						style = MaterialTheme.typography.headlineMedium
 					)
 				})
 			}
@@ -122,10 +120,10 @@ fun RemoteendApp() {
 					verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
 				) {
 					Text(
-						statusText,
+						message,
 						style = MaterialTheme.typography.headlineSmall
 					)
-					Button(onClick = { wsc.reconnect() }) {
+					FilledTonalButton(onClick = { wsc.reconnect() }) {
 						Text(
 							"Neu verbinden",
 							style = MaterialTheme.typography.bodyLarge
@@ -182,14 +180,20 @@ fun WidgetButtonColumn(webSocket: WebSocket?) {
 			}
 			WidgetButton("Gameplan", gameplanHandle) {
 				gameplanHandle = !gameplanHandle
+				livetableHandle = false
+				gamestartHandle = false
 				webSocket?.send(ByteString.of(1))
 			}
 			WidgetButton("Livetable", livetableHandle) {
 				livetableHandle = !livetableHandle
+				gameplanHandle = false
+				gamestartHandle = false
 				webSocket?.send(ByteString.of(2))
 			}
 			WidgetButton("Gamestart", gamestartHandle) {
 				gamestartHandle = !gamestartHandle
+				livetableHandle = false
+				gameplanHandle = false
 				webSocket?.send(ByteString.of(3))
 			}
 			WidgetButton("Ad", adHandle) {
@@ -233,8 +237,7 @@ fun ActionButton(
 	var isClicked by remember { mutableStateOf(false) }
 	if (isClicked) ActionButtonOn(imageVector = Icons.Filled.Close, label = labelOn, onClick = onOn) {
 		isClicked = !isClicked
-	}
-	else ActionButtonOff(imageVector = imageVector, label = labelOff, onClick = onOff) {
+	} else ActionButtonOff(imageVector = imageVector, label = labelOff, onClick = onOff) {
 		isClicked = !isClicked
 	}
 }
