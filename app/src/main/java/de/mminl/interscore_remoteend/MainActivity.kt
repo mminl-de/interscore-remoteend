@@ -48,7 +48,7 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import java.util.concurrent.TimeUnit
 
-class WebSocketClient(url: String, private var connected: Boolean, private val updateMessage: (String) -> Unit) {
+class WebSocketClient(url: String, private val updateMessage: (String, Boolean) -> Unit) {
 	private val client = OkHttpClient.Builder()
 		.retryOnConnectionFailure(true)
 		.pingInterval(10, TimeUnit.SECONDS)
@@ -57,12 +57,11 @@ class WebSocketClient(url: String, private var connected: Boolean, private val u
 
 	private val listener = object : WebSocketListener() {
 		override fun onOpen(webSocket: WebSocket, response: Response) {
-			updateMessage("Mit Port 8081 verbunden!")
-			connected = true
+			updateMessage("Mit Port 8081 verbunden!", true)
 		}
 
 		override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-			updateMessage("Verbindung gescheitert!")
+			updateMessage("Verbindung gescheitert!", false)
 		}
 
 		// TODO FINAL disconnect on destroying app
@@ -76,9 +75,8 @@ class WebSocketClient(url: String, private var connected: Boolean, private val u
 
 	// TODO
 	fun reconnect() {
-		connected = false
 		webSocket?.cancel()
-		updateMessage("Verbindet neu...")
+		updateMessage("Verbindet neu...", false)
 		connect()
 	}
 }
@@ -99,8 +97,9 @@ fun RemoteendApp() {
 	// TODO READ where to properly put this
 	var message by remember { mutableStateOf("Verbindet...") }
 	var connected by remember { mutableStateOf(false) }
-	val wsc = WebSocketClient("ws://192.168.137.216:8081", connected) { msg ->
+	val wsc = WebSocketClient("ws://192.168.188.31:8081") { msg, con ->
 		message = msg
+		connected = con
 	}
 	var streamCloseConfirmation by remember { mutableStateOf(false) }
 	wsc.connect()
