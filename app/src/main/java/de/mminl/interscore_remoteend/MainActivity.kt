@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -36,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import de.mminl.interscore_remoteend.ui.theme.InterscoreRemoteendTheme
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -45,7 +48,7 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import java.util.concurrent.TimeUnit
 
-class WebSocketClient(url: String, private val updateMessage: (String) -> Unit) {
+class WebSocketClient(url: String, private var connected: Boolean, private val updateMessage: (String) -> Unit) {
 	private val client = OkHttpClient.Builder()
 		.retryOnConnectionFailure(true)
 		.pingInterval(10, TimeUnit.SECONDS)
@@ -55,6 +58,7 @@ class WebSocketClient(url: String, private val updateMessage: (String) -> Unit) 
 	private val listener = object : WebSocketListener() {
 		override fun onOpen(webSocket: WebSocket, response: Response) {
 			updateMessage("Mit Port 8081 verbunden!")
+			connected = true
 		}
 
 		override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -72,6 +76,7 @@ class WebSocketClient(url: String, private val updateMessage: (String) -> Unit) 
 
 	// TODO
 	fun reconnect() {
+		connected = false
 		webSocket?.cancel()
 		updateMessage("Verbindet neu...")
 		connect()
@@ -93,9 +98,11 @@ class MainActivity : ComponentActivity() {
 fun RemoteendApp() {
 	// TODO READ where to properly put this
 	var message by remember { mutableStateOf("Verbindet...") }
-	val wsc = WebSocketClient("ws://192.168.0.28:8081") { msg ->
+	var connected by remember { mutableStateOf(false) }
+	val wsc = WebSocketClient("ws://192.168.137.216:8081", connected) { msg ->
 		message = msg
 	}
+	var streamCloseConfirmation by remember { mutableStateOf(false) }
 	wsc.connect()
 
 	InterscoreRemoteendTheme {
@@ -130,7 +137,7 @@ fun RemoteendApp() {
 						)
 					}
 				}
-				WidgetButtonColumn(wsc.webSocket)
+				WidgetButtonColumn(wsc.webSocket, connected)
 				Row(
 					modifier = Modifier.fillMaxWidth(),
 					horizontalArrangement = Arrangement.SpaceEvenly
@@ -139,15 +146,37 @@ fun RemoteendApp() {
 						Icons.AutoMirrored.Filled.Send,
 						labelOff = "Start stream",
 						labelOn = "Stop stream",
-						onOff = {},
-						onOn = {}
+                        onOff = {},
+						onOn = { streamCloseConfirmation = true },
+						enabled = connected
 					)
 					ActionButton(
 						Icons.Filled.Star,
 						labelOff = "Capture replay",
 						labelOn = "Abort replay",
-						onOff = {},
-						onOn = {}
+						onOff = {
+                            wsc.webSocket?.send(ByteString.of(7))
+                        },
+						onOn = {
+                            wsc.webSocket?.send(ByteString.of(8))
+                        },
+						enabled = connected
+					)
+				}
+			}
+		}
+
+		if (streamCloseConfirmation) {
+			Dialog(onDismissRequest = { streamCloseConfirmation = false }) {
+				Card (
+					modifier = Modifier
+						.fillMaxWidth()
+						.height(200.dp)
+						.padding(16.dp),
+					shape = MaterialTheme.shapes.extraLarge
+				) {
+					Text(
+						text = "Möchten Sie den Stream wirklich schließen?"
 					)
 				}
 			}
@@ -156,7 +185,7 @@ fun RemoteendApp() {
 }
 
 @Composable
-fun WidgetButtonColumn(webSocket: WebSocket?) {
+fun WidgetButtonColumn(webSocket: WebSocket?, enabled: Boolean) {
 	Surface(
 		modifier = Modifier
 			.wrapContentHeight()
@@ -174,29 +203,29 @@ fun WidgetButtonColumn(webSocket: WebSocket?) {
 			var gamestartHandle by remember { mutableStateOf(false) }
 			var adHandle by remember { mutableStateOf(false) }
 
-			WidgetButton("Scoreboard", scoreboardHandle) {
+			WidgetButton("Scoreboard", scoreboardHandle, enabled) {
 				scoreboardHandle = !scoreboardHandle
 				webSocket?.send(ByteString.of(0))
 			}
-			WidgetButton("Gameplan", gameplanHandle) {
+			WidgetButton("Gameplan", gameplanHandle, enabled) {
 				gameplanHandle = !gameplanHandle
 				livetableHandle = false
 				gamestartHandle = false
 				webSocket?.send(ByteString.of(1))
 			}
-			WidgetButton("Livetable", livetableHandle) {
+			WidgetButton("Livetable", livetableHandle, enabled) {
 				livetableHandle = !livetableHandle
 				gameplanHandle = false
 				gamestartHandle = false
 				webSocket?.send(ByteString.of(2))
 			}
-			WidgetButton("Gamestart", gamestartHandle) {
+			WidgetButton("Gamestart", gamestartHandle, enabled) {
 				gamestartHandle = !gamestartHandle
 				livetableHandle = false
 				gameplanHandle = false
 				webSocket?.send(ByteString.of(3))
 			}
-			WidgetButton("Ad", adHandle) {
+			WidgetButton("Ad", adHandle, enabled) {
 				adHandle = !adHandle
 				webSocket?.send(ByteString.of(4))
 			}
@@ -205,11 +234,12 @@ fun WidgetButtonColumn(webSocket: WebSocket?) {
 }
 
 @Composable
-fun WidgetButton(text: String, handle: Boolean, onClick: () -> Unit) {
+fun WidgetButton(text: String, handle: Boolean, enabled: Boolean, onClick: () -> Unit) {
 	Surface(
 		modifier = Modifier.fillMaxWidth(),
 		color = MaterialTheme.colorScheme.surfaceContainerHigh,
-		onClick = onClick
+		onClick = onClick,
+		enabled = enabled
 	) {
 		Row(
 			modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
@@ -222,7 +252,8 @@ fun WidgetButton(text: String, handle: Boolean, onClick: () -> Unit) {
 			)
 			Switch(
 				checked = handle,
-				onCheckedChange = { onClick() }
+				onCheckedChange = { onClick() },
+				enabled = enabled
 			)
 		}
 	}
@@ -232,18 +263,19 @@ fun WidgetButton(text: String, handle: Boolean, onClick: () -> Unit) {
 fun ActionButton(
 	imageVector: ImageVector,
 	labelOff: String, labelOn: String,
-	onOff: () -> Unit, onOn: () -> Unit
+	onOff: () -> Unit, onOn: () -> Unit,
+	enabled: Boolean
 ) {
 	var isClicked by remember { mutableStateOf(false) }
-	if (isClicked) ActionButtonOn(imageVector = Icons.Filled.Close, label = labelOn, onClick = onOn) {
+	if (isClicked) ActionButtonOn(imageVector = Icons.Filled.Close, label = labelOn, onClick = onOn, enabled) {
 		isClicked = !isClicked
-	} else ActionButtonOff(imageVector = imageVector, label = labelOff, onClick = onOff) {
+	} else ActionButtonOff(imageVector = imageVector, label = labelOff, onClick = onOff, enabled) {
 		isClicked = !isClicked
 	}
 }
 
 @Composable
-fun ActionButtonOn(imageVector: ImageVector, label: String, onClick: () -> Unit, switch: () -> Unit) {
+fun ActionButtonOn(imageVector: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean, switch: () -> Unit) {
 	Column(
 		horizontalAlignment = Alignment.CenterHorizontally,
 		verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -257,7 +289,8 @@ fun ActionButtonOn(imageVector: ImageVector, label: String, onClick: () -> Unit,
 			colors = ButtonDefaults.buttonColors(
 				containerColor = MaterialTheme.colorScheme.primary,
 				contentColor = MaterialTheme.colorScheme.surface
-			)
+			),
+			enabled = enabled
 		) {
 			Icon(
 				modifier = Modifier.size(32.dp),
@@ -270,7 +303,7 @@ fun ActionButtonOn(imageVector: ImageVector, label: String, onClick: () -> Unit,
 }
 
 @Composable
-fun ActionButtonOff(imageVector: ImageVector, label: String, onClick: () -> Unit, switch: () -> Unit) {
+fun ActionButtonOff(imageVector: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean, switch: () -> Unit) {
 	Column(
 		horizontalAlignment = Alignment.CenterHorizontally,
 		verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -284,7 +317,8 @@ fun ActionButtonOff(imageVector: ImageVector, label: String, onClick: () -> Unit
 			colors = ButtonDefaults.buttonColors(
 				containerColor = MaterialTheme.colorScheme.surfaceVariant,
 				contentColor = MaterialTheme.colorScheme.onSurface
-			)
+			),
+			enabled = enabled
 		) {
 			Icon(
 				modifier = Modifier.size(32.dp),
