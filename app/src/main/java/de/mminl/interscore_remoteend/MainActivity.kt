@@ -1,6 +1,7 @@
 package de.mminl.interscore_remoteend
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Star
@@ -23,6 +25,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -85,6 +88,7 @@ class WebSocketClient(url: String, private val updateMessage: (String, Boolean) 
 // TODO FINAL confirmation dialogue for closing stream
 class MainActivity : ComponentActivity() {
 	override fun onCreate(savedInstanceState: Bundle?) {
+		window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 		super.onCreate(savedInstanceState)
 		enableEdgeToEdge()
 		setContent { RemoteendApp() }
@@ -97,7 +101,7 @@ fun RemoteendApp() {
 	// TODO READ where to properly put this
 	var message by remember { mutableStateOf("Verbindet...") }
 	var connected by remember { mutableStateOf(false) }
-	val wsc = WebSocketClient("ws://192.168.188.31:8081") { msg, con ->
+	val wsc = WebSocketClient("ws://192.168.188.21:8081") { msg, con ->
 		message = msg
 		connected = con
 	}
@@ -108,12 +112,28 @@ fun RemoteendApp() {
 		Scaffold(
 			modifier = Modifier.fillMaxSize(),
 			topBar = {
-				TopAppBar(title = {
-					Text(
-						"Interscore Remote",
-						style = MaterialTheme.typography.headlineMedium
-					)
-				})
+				TopAppBar(
+					title = {
+						Text(
+							"Interscore Remote",
+							style = MaterialTheme.typography.headlineMedium
+						)
+					},
+					actions = {
+						IconButton(onClick = { /* TODO */ }) {
+							Icon(
+								imageVector = Icons.Filled.MoreVert,
+								contentDescription = "Menu"
+							)
+						}
+						IconButton(onClick = { /* TODO */ }) {
+							Icon(
+								imageVector = Icons.Filled.MoreVert,
+								contentDescription = "Menu"
+							)
+						}
+					}
+				)
 			}
 		) { innerPadding ->
 			Column(
