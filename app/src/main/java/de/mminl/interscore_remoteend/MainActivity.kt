@@ -84,6 +84,17 @@ class WebSocketClient(url: String, private val updateMessage: (String, Boolean) 
 	}
 }
 
+// TODO layout
+// normal controls
+// connected clients + obs scenes
+// find ip
+
+// stream snapshot
+// game related info
+// json editor
+
+// debug log
+
 // TODO FINAL dont make the phone sleep
 // TODO FINAL confirmation dialogue for closing stream
 class MainActivity : ComponentActivity() {
