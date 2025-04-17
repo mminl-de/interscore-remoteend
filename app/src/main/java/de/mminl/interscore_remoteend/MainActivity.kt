@@ -198,50 +198,11 @@ fun RemoteendApp() {
 						size = Size(size.width, glowWidth)
 					)
 				},
-			topBar = {
-				TopAppBar(
-					title = {
-						Text(
-							"Interscore Remote",
-							style = MaterialTheme.typography.headlineMedium
-						)
-					},
-					actions = {
-						IconButton(onClick = { /* TODO */ }) {
-							Icon(
-								imageVector = Icons.Filled.MoreVert,
-								contentDescription = "Menu"
-							)
-						}
-						IconButton(onClick = { /* TODO */ }) {
-							Icon(
-								imageVector = Icons.Filled.MoreVert,
-								contentDescription = "Menu"
-							)
-						}
-					}
-				)
-			}
 		) { innerPadding ->
 			Column(
 				modifier = Modifier.fillMaxSize().padding(innerPadding),
 				verticalArrangement = Arrangement.SpaceEvenly
 			) {
-				Column(
-					modifier = Modifier.fillMaxWidth(),
-					horizontalAlignment = Alignment.CenterHorizontally,
-					verticalArrangement = Arrangement.spacedBy(
-						16.dp,
-						Alignment.CenterVertically
-					)
-				) {
-					FilledTonalButton(onClick = { wsc.reconnect() }) {
-						Text(
-							"Neu verbinden",
-							style = MaterialTheme.typography.bodyLarge
-						)
-					}
-				}
 				WidgetButtonColumn(wsc.webSocket, wscState.connected == WS_STATE.CONNECTED)
 				Row(
 					modifier = Modifier.fillMaxWidth(),
@@ -267,6 +228,28 @@ fun RemoteendApp() {
 						},
 						enabled = wscState.connected == WS_STATE.CONNECTED
 					)
+				}
+			}
+			Surface(
+				modifier = Modifier.fillMaxWidth(),
+				color = MaterialTheme.colorScheme.surfaceContainerHigh,
+			) {
+				Row(
+					modifier = Modifier.padding(horizontal = 24.dp, vertical = 13.dp),
+					horizontalArrangement = Arrangement.SpaceBetween,
+					verticalAlignment = Alignment.CenterVertically
+				) {
+					//TextBox
+					Text(
+						style = MaterialTheme.typography.headlineMedium,
+						text = "IP ADRESSE"
+					)
+					FilledTonalButton(onClick = { wsc.reconnect() }) {
+						Text(
+							"Verbinden",
+							style = MaterialTheme.typography.bodyLarge
+						)
+					}
 				}
 			}
 		}
