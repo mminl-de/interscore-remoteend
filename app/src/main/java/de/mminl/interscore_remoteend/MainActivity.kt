@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
@@ -69,12 +70,12 @@ data class WebSocketClientState(
 
 
 
-class WebSocketClient(url: String, private val state: MutableState<WebSocketClientState>) {
+class WebSocketClient(private var url: String, private val state: MutableState<WebSocketClientState>) {
 	private val client = OkHttpClient.Builder()
 		.retryOnConnectionFailure(true)
 		.pingInterval(10, TimeUnit.SECONDS)
 		.build()
-	private val request = Request.Builder().url(url).build()
+	private var request = Request.Builder().url(url).build()
 
 	private val listener = object : WebSocketListener() {
 		override fun onOpen(webSocket: WebSocket, response: Response) {
@@ -102,7 +103,11 @@ class WebSocketClient(url: String, private val state: MutableState<WebSocketClie
 	}
 
 	// TODO
-	fun reconnect() {
+	fun reconnect(urlNew: String) {
+		if(urlNew != url) {
+			url = urlNew
+			request = Request.Builder().url(url).build()
+		}
 		state.value = state.value.copy(connected = WS_STATE.CLOSING)
 		webSocket?.cancel()
 		connect()
@@ -133,21 +138,26 @@ fun RemoteendApp() {
 	var wscState by wscStateMutable
 	val wsc = remember { WebSocketClient(ipAddress, wscStateMutable) }
 	var streamCloseConfirmation by remember { mutableStateOf(false) }
+
+	//This is needed so the application doesnt close instantly when pressing the back button
+	BackHandler { Log.d("BACK_HANDLER", "Back button pressed – doing nothing, fuck you") }
+
 	wsc.connect()
 
-	val borderColor by remember(wscState.connected) {
-		mutableStateOf(
-			if (wscState.connected == WS_STATE.CONNECTED) {
-				Log.d("COMPOSE_DEBUG", "Color Green, Connected")
-				Color.Green.copy(alpha = 0.15f)
-			} else if (wscState.connected == WS_STATE.CONNECTING || wscState.connected == WS_STATE.CLOSING){
-				Log.d("COMPOSE_DEBUG", "Color Blue, Connecting")
-				Color.Blue.copy(alpha = 0.15f)
-			} else {
-				Log.d("COMPOSE_DEBUG", "Color Red, Not Connected")
-				Color(0x99FF5722).copy(alpha = 0.3f)
-			}
-		)
+	var borderAlpha: Float
+	val borderColor: Color
+	if (wscState.connected == WS_STATE.CONNECTED) {
+		Log.d("COMPOSE_DEBUG", "Color Green, Connected")
+		borderColor = Color.Green//.copy(alpha = 0.15f)
+		borderAlpha = 0.15f
+	} else if (wscState.connected == WS_STATE.CONNECTING || wscState.connected == WS_STATE.CLOSING){
+		Log.d("COMPOSE_DEBUG", "Color Blue, Connecting")
+		borderColor = Color(0xFF1565C0)//.copy(alpha = 0.15f)
+		borderAlpha = 0.7f
+	} else {
+		Log.d("COMPOSE_DEBUG", "Color Red, Not Connected")
+		borderColor = Color(0xFFE53935)//.copy(alpha = 0.3f)
+		borderAlpha = 0.3f
 	}
 
 	InterscoreRemoteendTheme {
@@ -157,12 +167,12 @@ fun RemoteendApp() {
 				.drawWithContent {
 					drawContent()
 
-					val glowWidth = 50.dp.toPx()
+					val glowWidth = 20.dp.toPx()
 
 					// Left glow (red → transparent)
 					drawRect(
 						brush = Brush.horizontalGradient(
-							0f to borderColor,
+							0f to borderColor.copy(alpha = borderAlpha),
 							1f to Color.Transparent,
 							startX = 0f,
 							endX = glowWidth
@@ -174,7 +184,7 @@ fun RemoteendApp() {
 					drawRect(
 						brush = Brush.horizontalGradient(
 							0f to Color.Transparent,
-							1f to borderColor,
+							1f to borderColor.copy(alpha = borderAlpha),
 							startX = size.width - glowWidth,
 							endX = size.width
 						),
@@ -185,7 +195,7 @@ fun RemoteendApp() {
 					// Top glow (red → transparent)
 					drawRect(
 						brush = Brush.verticalGradient(
-							colors = listOf(borderColor, Color.Transparent),
+							colors = listOf(borderColor.copy(alpha = borderAlpha), Color.Transparent),
 							startY = 0f,
 							endY = glowWidth
 						),
@@ -195,7 +205,7 @@ fun RemoteendApp() {
 					// Bottom glow (transparent → red)
 					drawRect(
 						brush = Brush.verticalGradient(
-							colors = listOf(Color.Transparent, borderColor),
+							colors = listOf(Color.Transparent, borderColor.copy(alpha = borderAlpha)),
 							startY = size.height - glowWidth,
 							endY = size.height
 						),
@@ -235,39 +245,44 @@ fun RemoteendApp() {
 					)
 				}
 			}
-			Surface(
-				modifier = Modifier.fillMaxWidth().height(90.dp),
-				color = Color(0xFFE53935)
-			) {
-				Row(
-					modifier = Modifier.fillMaxSize().padding(bottom = 6.dp, start = 12.dp, end = 12.dp),
-					horizontalArrangement = Arrangement.SpaceBetween,
-					verticalAlignment = Alignment.Bottom
+			if(wscState.connected != WS_STATE.CONNECTED) {
+				Surface(
+					modifier = Modifier.fillMaxWidth().height(90.dp),
+					color = borderColor
 				) {
-					TextField(
-						value = ipAddress,
-						onValueChange = { ipAddress = it },
-						label = { Text("IP-Adresse") },
-						singleLine = true,
-						colors = TextFieldDefaults.colors(
-							unfocusedContainerColor = Color(0xFFE53935)
-						),
-						modifier = Modifier
-							.weight(1f)
-							.padding(end = 8.dp)
-
-					)
-					FilledTonalButton(
-						onClick = { wsc.reconnect() },
-						colors = ButtonDefaults.buttonColors(
-							containerColor = Color(0x28000000),
-							contentColor = Color.White
-						),
+					Row(
+						modifier = Modifier.fillMaxSize()
+							.padding(bottom = 6.dp, start = 12.dp, end = 12.dp),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.Bottom,
 					) {
-						Text(
-							"Verbinden",
-							style = MaterialTheme.typography.bodyLarge
+						TextField(
+							value = ipAddress,
+							onValueChange = { ipAddress = it },
+							label = { Text("IP-Adresse") },
+							singleLine = true,
+							colors = TextFieldDefaults.colors(
+								unfocusedContainerColor = borderColor,
+								focusedContainerColor = borderColor
+							),
+							modifier = Modifier
+								.weight(1f)
+								.padding(end = 8.dp)
+
 						)
+						FilledTonalButton(
+							enabled = (wscState.connected != WS_STATE.CONNECTED) || (wscState.connected != WS_STATE.CONNECTING),
+							onClick = { wsc.reconnect(ipAddress) },
+							colors = ButtonDefaults.buttonColors(
+								containerColor = Color(0x28000000),
+								contentColor = Color.White
+							),
+						) {
+							Text(
+								"Verbinden",
+								style = MaterialTheme.typography.bodyLarge
+							)
+						}
 					}
 				}
 			}
