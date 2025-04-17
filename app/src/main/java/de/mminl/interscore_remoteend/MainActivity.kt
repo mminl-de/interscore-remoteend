@@ -24,7 +24,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -40,12 +39,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.window.Dialog
@@ -57,6 +60,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
 import java.util.concurrent.TimeUnit
+
 enum class WS_STATE {CONNECTED, CONNECTING, CONNECTION_FAILED, NOT_CONNECTED, CLOSING}
 
 data class WebSocketClientState(
@@ -124,9 +128,10 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun RemoteendApp() {
 	// TODO READ where to properly put this
+	var ipAddress by remember { mutableStateOf("ws://192.168.178.57:8081") }
 	var wscStateMutable = remember { mutableStateOf(WebSocketClientState()) }
 	var wscState by wscStateMutable
-	val wsc = remember { WebSocketClient("ws://192.168.178.57:8081", wscStateMutable) }
+	val wsc = remember { WebSocketClient(ipAddress, wscStateMutable) }
 	var streamCloseConfirmation by remember { mutableStateOf(false) }
 	wsc.connect()
 
@@ -140,7 +145,7 @@ fun RemoteendApp() {
 				Color.Blue.copy(alpha = 0.15f)
 			} else {
 				Log.d("COMPOSE_DEBUG", "Color Red, Not Connected")
-				Color(0x99FF5722).copy(alpha = 0.15f)
+				Color(0x99FF5722).copy(alpha = 0.3f)
 			}
 		)
 	}
@@ -152,7 +157,7 @@ fun RemoteendApp() {
 				.drawWithContent {
 					drawContent()
 
-					val glowWidth = 200.dp.toPx()
+					val glowWidth = 50.dp.toPx()
 
 					// Left glow (red → transparent)
 					drawRect(
@@ -231,20 +236,34 @@ fun RemoteendApp() {
 				}
 			}
 			Surface(
-				modifier = Modifier.fillMaxWidth(),
-				color = MaterialTheme.colorScheme.surfaceContainerHigh,
+				modifier = Modifier.fillMaxWidth().height(90.dp),
+				color = Color(0xFFE53935)
 			) {
 				Row(
-					modifier = Modifier.padding(horizontal = 24.dp, vertical = 13.dp),
+					modifier = Modifier.fillMaxSize().padding(bottom = 6.dp, start = 12.dp, end = 12.dp),
 					horizontalArrangement = Arrangement.SpaceBetween,
-					verticalAlignment = Alignment.CenterVertically
+					verticalAlignment = Alignment.Bottom
 				) {
-					//TextBox
-					Text(
-						style = MaterialTheme.typography.headlineMedium,
-						text = "IP ADRESSE"
+					TextField(
+						value = ipAddress,
+						onValueChange = { ipAddress = it },
+						label = { Text("IP-Adresse") },
+						singleLine = true,
+						colors = TextFieldDefaults.colors(
+							unfocusedContainerColor = Color(0xFFE53935)
+						),
+						modifier = Modifier
+							.weight(1f)
+							.padding(end = 8.dp)
+
 					)
-					FilledTonalButton(onClick = { wsc.reconnect() }) {
+					FilledTonalButton(
+						onClick = { wsc.reconnect() },
+						colors = ButtonDefaults.buttonColors(
+							containerColor = Color(0x28000000),
+							contentColor = Color.White
+						),
+					) {
 						Text(
 							"Verbinden",
 							style = MaterialTheme.typography.bodyLarge
