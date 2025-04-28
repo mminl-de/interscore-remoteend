@@ -7,15 +7,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.absoluteOffset
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,8 +58,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.window.Dialog
 import de.mminl.interscore_remoteend.ui.theme.InterscoreRemoteendTheme
 import okhttp3.OkHttpClient
@@ -63,12 +74,17 @@ import okio.ByteString
 import java.util.concurrent.TimeUnit
 
 enum class WS_STATE {CONNECTED, CONNECTING, CONNECTION_FAILED, NOT_CONNECTED, CLOSING}
+enum class OBS_SCENE {LIVE, REPLAY, GAME_REPLAY}
 
 data class WebSocketClientState(
-	var connected: WS_STATE = WS_STATE.NOT_CONNECTED
+	var connected: WS_STATE = WS_STATE.NOT_CONNECTED,
+	var c_rentnerend: Boolean = false,
+	var c_frontend: Boolean = false,
+	var c_replaybuffer: Boolean = false,
+	var c_obs_connected: Boolean = false,
+	var c_obs_scene: OBS_SCENE = OBS_SCENE.LIVE
+	//var videofeed/rtmp server/internet vom rtmp server bzw. yt connection
 )
-
-
 
 class WebSocketClient(private var url: String, private val state: MutableState<WebSocketClientState>) {
 	private val client = OkHttpClient.Builder()
@@ -77,6 +93,7 @@ class WebSocketClient(private var url: String, private val state: MutableState<W
 		.build()
 	private var request = Request.Builder().url(url).build()
 
+	enum class RECEIVE_CODE {CLIENTS_CON_STATUS, IMAGE, JSON, GAME_CHANGES}
 	private val listener = object : WebSocketListener() {
 		override fun onOpen(webSocket: WebSocket, response: Response) {
 			state.value = state.value.copy(connected = WS_STATE.CONNECTED)
@@ -90,6 +107,23 @@ class WebSocketClient(private var url: String, private val state: MutableState<W
 				Log.d("COMPOSE_DEBUG", "Connection failed (P2): ${state.value.connected}")
 			} else {
 				Log.d("COMPOSE_DEBUG", "Connection closed by us: ${state.value.connected}")
+			}
+		}
+
+		override fun onMessage(webSocket: WebSocket, text: String) {
+			Log.d("COMPOSE_DEBUG", "Received text message (ignoring): $text")
+		}
+
+		override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+			Log.d("COMPOSE_DEBUG", "Received binary message: $bytes")
+			val data = bytes.toByteArray()
+			if(data[0].toInt() == RECEIVE_CODE.CLIENTS_CON_STATUS.ordinal && data.size >= 6) {
+				Log.d("COMPOSE_DEBUG", "Binary message is CLIENTS_CON_STATUS")
+				state.value = state.value.copy(c_rentnerend = data[1].toInt() == 1)
+				state.value = state.value.copy(c_frontend = data[2].toInt() == 1)
+				state.value = state.value.copy(c_obs_connected = data[3].toInt() == 1)
+				state.value = state.value.copy(c_replaybuffer = data[4].toInt() == 1)
+				state.value = state.value.copy(c_obs_scene = OBS_SCENE.entries[data[5].toInt()])
 			}
 		}
 
@@ -146,19 +180,33 @@ fun RemoteendApp() {
 
 	var borderAlpha: Float
 	val borderColor: Color
+	var glowWidth_: Dp
 	if (wscState.connected == WS_STATE.CONNECTED) {
 		Log.d("COMPOSE_DEBUG", "Color Green, Connected")
 		borderColor = Color.Green//.copy(alpha = 0.15f)
 		borderAlpha = 0.15f
+		glowWidth_ = 20.dp
 	} else if (wscState.connected == WS_STATE.CONNECTING || wscState.connected == WS_STATE.CLOSING){
 		Log.d("COMPOSE_DEBUG", "Color Blue, Connecting")
-		borderColor = Color(0xFF1565C0)//.copy(alpha = 0.15f)
+		borderColor = Color(0xFF1565C0)
 		borderAlpha = 0.7f
+		glowWidth_ = 30.dp
 	} else {
 		Log.d("COMPOSE_DEBUG", "Color Red, Not Connected")
-		borderColor = Color(0xFFE53935)//.copy(alpha = 0.3f)
+		borderColor = Color(0xFFE53935)
 		borderAlpha = 0.3f
+		glowWidth_ = 50.dp
 	}
+
+	val color_rentnerend: Color
+	val color_obs: Color
+	val color_web: Color
+	val color_replaybuffer: Color
+	color_rentnerend = if(wscState.c_rentnerend) Color.Green else Color.Red
+	color_obs = if(wscState.c_obs_connected) Color.Green else Color.Red
+	color_web = if(wscState.c_frontend) Color.Green else Color.Red
+	color_replaybuffer = if(wscState.c_replaybuffer) Color.Green else Color.Red
+
 
 	InterscoreRemoteendTheme {
 		Scaffold(
@@ -167,7 +215,8 @@ fun RemoteendApp() {
 				.drawWithContent {
 					drawContent()
 
-					val glowWidth = 20.dp.toPx()
+					// TODO FINAL make this not suck, glowWidth should be Px directly, Problem is that toPx() is not accessible above
+					val glowWidth = glowWidth_.toPx()
 
 					// Left glow (red → transparent)
 					drawRect(
@@ -218,6 +267,58 @@ fun RemoteendApp() {
 				modifier = Modifier.fillMaxSize().padding(innerPadding),
 				verticalArrangement = Arrangement.SpaceEvenly
 			) {
+				/*
+				Column(
+					modifier = Modifier
+						.fillMaxWidth()
+						.padding(horizontal = 16.dp, vertical = 8.dp)
+				) {
+					Row(
+						modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Box(
+							contentAlignment = Alignment.Center,
+							modifier = Modifier.height(IntrinsicSize.Min)
+						) {
+							Text("Kampfgericht:")
+							//Box(modifier = Modifier.clip(CircleShape).background(color_rentnerend))
+							Box(
+								modifier = Modifier
+								.matchParentSize()
+								.clip(CircleShape)
+								.background(color_rentnerend)
+							)
+						}
+					}
+					Row(
+						modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Text("Web-Overlay:")
+						Box(modifier = Modifier.clip(CircleShape).background(color_web))
+					}
+					Row(
+						modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Text("OBS:")
+						Box(modifier = Modifier.clip(CircleShape).background(color_obs))
+					}
+					Row(
+						modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+						horizontalArrangement = Arrangement.SpaceBetween,
+						verticalAlignment = Alignment.CenterVertically
+					) {
+						Text("Replay buffer:")
+						Box(modifier = Modifier.clip(CircleShape).background(color_replaybuffer))
+					}
+				}
+				*/
+				WidgetWSClientConStatus(wscState)
 				WidgetButtonColumn(wsc.webSocket, wscState.connected == WS_STATE.CONNECTED)
 				Row(
 					modifier = Modifier.fillMaxWidth(),
@@ -302,6 +403,75 @@ fun RemoteendApp() {
 					)
 				}
 			}
+		}
+	}
+}
+
+@Composable
+fun WidgetWSClientConStatus(wsState: WebSocketClientState) {
+	Surface(
+		modifier = Modifier
+			.wrapContentHeight()
+			.padding(horizontal = 16.dp)
+			.absoluteOffset()
+		
+		,shape = MaterialTheme.shapes.extraSmall
+	) {
+		Column(
+			modifier = Modifier.wrapContentHeight(),
+			verticalArrangement =
+				Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
+		) {
+			WidgetWSClientConStatusTextLine(
+				"Kampfgericht:",
+				wsState.c_rentnerend,
+				wsState.connected == WS_STATE.CONNECTED
+			)
+			WidgetWSClientConStatusTextLine(
+				"Frontend:",
+				wsState.c_frontend,
+				wsState.connected == WS_STATE.CONNECTED
+			)
+			WidgetWSClientConStatusTextLine(
+				"Replaybuffer:",
+				wsState.c_replaybuffer,
+				wsState.connected == WS_STATE.CONNECTED
+			)
+			WidgetWSClientConStatusTextLine(
+				"OBS:",
+				wsState.c_obs_connected,
+				wsState.connected == WS_STATE.CONNECTED
+			)
+			//WidgetWSClientConStatusTextLine("OBS Szene:", wsState.c_rentnerend, wsState.connected == WS_STATE.CONNECTED)
+		}
+	}
+}
+
+@Composable
+fun WidgetWSClientConStatusTextLine(text: String, connected: Boolean, enabled: Boolean) {
+	Surface(
+		modifier = Modifier.width(150.dp),
+		color = MaterialTheme.colorScheme.surfaceContainerHigh,
+	) {
+		Row(
+			modifier = Modifier.padding(horizontal = 2.dp, vertical = 0.dp),
+			horizontalArrangement = Arrangement.SpaceBetween,
+			//horizontalArrangement = Arrangement.End,
+			verticalAlignment = Alignment.CenterVertically
+		) {
+			val textStyle = MaterialTheme.typography.bodyLarge
+			var circleSize = with(LocalDensity.current) { textStyle.fontSize.toDp() * 1f }
+			Text(
+				style = textStyle,
+				text = text
+			)
+			val btn_color: Color = if(connected) Color.Green else Color.Red
+			Box(modifier = Modifier
+				.clip(CircleShape)
+				.size(circleSize)
+				.clip(CircleShape)
+				.background(btn_color)
+			)
 		}
 	}
 }
